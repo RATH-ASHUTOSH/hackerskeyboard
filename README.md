@@ -1,10 +1,8 @@
-Fork Update:
+## Fork Update: ##
 
-Modern Android Compatibility: Upgraded the Target SDK and modernized the codebase to ensure full compatibility and crash-free stability on modern Android 13/14+ devices.
+Modern Android Compatibility: Upgraded the Target SDK for modern Android 13/14+ devices.
 
-Modern AMOLED Theme: Added a brand-new, pure-black theme optimized for modern OLED displays.
-
-Glassy Rounded Keys: Replaced legacy pixel-art images with crisp, scalable XML shapes. Keys now feature a semi-transparent frosted glass effect, modern rounded corners, and sleek custom Cyan LED indicators for toggle keys (Ctrl/Alt/Shift).
+Modern AMOLED Theme: black theme optimized for modern OLED displays.Keys now feature a semi-transparent frosted glass effect, modern rounded corners, and sleek custom Cyan LED indicators for toggle keys (Ctrl/Alt/Shift).
 
 Modern Action Keys Option: Added a new toggle in the Settings menu to dynamically swap the physical locations of the Enter and Backspace keys. This perfectly matches modern mobile muscle memory while preserving the classic PC layout logic.
 
