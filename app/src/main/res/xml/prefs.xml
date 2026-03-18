@@ -138,6 +138,12 @@
             android:summaryOn="@string/summary_shift_lock_modifiers_true"
             android:summaryOff="@string/summary_shift_lock_modifiers_false"
             />
+
+    <CheckBoxPreference
+        android:key="pref_swap_action_keys"
+        android:title="Modern Action Keys"
+        android:summary="Swaps the location of the Enter and Backspace keys to match modern mobile keyboards."
+        android:defaultValue="false" />
     
     <PreferenceScreen
             android:title="@string/pref_screen_feedback_title"

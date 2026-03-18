@@ -51,9 +51,10 @@ public class ContactsDictionary extends ExpandableDictionary {
         // Perform a managed query. The Activity will handle closing and requerying the cursor
         // when needed.
         ContentResolver cres = context.getContentResolver();
+        android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
 
         cres.registerContentObserver(
-                Contacts.CONTENT_URI, true,mObserver = new ContentObserver(null) {
+                Contacts.CONTENT_URI, true, mObserver = new ContentObserver(handler) {
                     @Override
                     public void onChange(boolean self) {
                         setRequiresReload(true);

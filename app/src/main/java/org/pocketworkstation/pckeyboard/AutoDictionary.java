@@ -234,15 +234,22 @@ public class AutoDictionary extends ExpandableDictionary {
         @Override
         protected Void doInBackground(Void... v) {
             SQLiteDatabase db = mDbHelper.getWritableDatabase();
-            // Write all the entries to the db
             Set<Entry<String,Integer>> mEntries = mMap.entrySet();
             for (Entry<String,Integer> entry : mEntries) {
+                String word = entry.getKey();
                 Integer freq = entry.getValue();
+
+                // STRICT NULL CHECK REQUIRED BY D8
+                if (word == null || mLocale == null) {
+                    continue;
+                }
+
                 db.delete(AUTODICT_TABLE_NAME, COLUMN_WORD + "=? AND " + COLUMN_LOCALE + "=?",
-                        new String[] { entry.getKey(), mLocale });
+                        new String[] { word, mLocale });
+
                 if (freq != null) {
                     db.insert(AUTODICT_TABLE_NAME, null,
-                            getContentValues(entry.getKey(), freq, mLocale));
+                            getContentValues(word, freq, mLocale));
                 }
             }
             return null;

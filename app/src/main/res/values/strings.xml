@@ -367,6 +367,7 @@
         <item>@string/layout_gingerbread</item>
         <item>@string/layout_stone_bold</item>
         <item>@string/layout_trans_neon</item>
+        <item>Modern AMOLED</item>
     </string-array>
 
     <!--
@@ -384,6 +385,7 @@
         <item>1</item>
         <item>2</item>
         <item>3</item>
+        <item>8</item>
     </string-array>
 
     <string name="subtype_mode_keyboard">keyboard</string>

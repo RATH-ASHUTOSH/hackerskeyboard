@@ -150,6 +150,58 @@ public class LatinKeyboard extends Keyboard {
         mSpaceKeyIndexArray = new int[] { indexOf(LatinIME.ASCII_SPACE) };
         // TODO remove this initialization after cleanup
         mVerticalGap = super.getVerticalGap();
+
+        applyModernKeyLayout();
+    }
+
+    private void applyModernKeyLayout() {
+        // Only run this if the user enabled the setting
+        if (!LatinIME.sKeyboardSettings.swapActionKeys) return;
+
+        Key physicalEnterKey = null;
+        Key physicalBackspaceKey = null;
+
+        // Find the physical keys for Enter and Backspace
+        for (Key key : getKeys()) {
+            if (key.codes != null && key.codes.length > 0) {
+                if (key.codes[0] == LatinIME.ASCII_ENTER) {
+                    physicalEnterKey = key;
+                } else if (key.codes[0] == Keyboard.KEYCODE_DELETE) {
+                    physicalBackspaceKey = key;
+                }
+            }
+        }
+
+        // If we found both, swap their identities completely
+        if (physicalEnterKey != null && physicalBackspaceKey != null) {
+            // 1. Swap Key Codes
+            int[] tempCodes = physicalEnterKey.codes;
+            physicalEnterKey.codes = physicalBackspaceKey.codes;
+            physicalBackspaceKey.codes = tempCodes;
+
+            // 2. Swap Icons
+            Drawable tempIcon = physicalEnterKey.icon;
+            physicalEnterKey.icon = physicalBackspaceKey.icon;
+            physicalBackspaceKey.icon = tempIcon;
+
+            // 3. Swap Preview Icons (the popup when you press it)
+            Drawable tempIconPreview = physicalEnterKey.iconPreview;
+            physicalEnterKey.iconPreview = physicalBackspaceKey.iconPreview;
+            physicalBackspaceKey.iconPreview = tempIconPreview;
+
+            // 4. Swap Labels (just in case the theme uses text instead of icons)
+            CharSequence tempLabel = physicalEnterKey.label;
+            physicalEnterKey.label = physicalBackspaceKey.label;
+            physicalBackspaceKey.label = tempLabel;
+
+            // 5. Swap Repeatable flag (Backspace repeats when held down, Enter doesn't)
+            boolean tempRepeatable = physicalEnterKey.repeatable;
+            physicalEnterKey.repeatable = physicalBackspaceKey.repeatable;
+            physicalBackspaceKey.repeatable = tempRepeatable;
+
+            // 6. Update the global reference so "Search" and "Go" buttons apply to the new Enter key
+            mEnterKey = physicalBackspaceKey;
+        }
     }
 
     @Override

@@ -16,12 +16,6 @@
 
 package org.pocketworkstation.pckeyboard;
 
-import org.pocketworkstation.pckeyboard.LatinIMEUtil.RingCharBuffer;
-
-import com.google.android.voiceime.VoiceRecognitionTrigger;
-
-import org.xmlpull.v1.XmlPullParserException;
-
 import android.app.AlertDialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -38,15 +32,16 @@ import android.content.res.XmlResourceParser;
 import android.inputmethodservice.InputMethodService;
 import android.media.AudioManager;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.SystemClock;
 import android.os.Vibrator;
-import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationManagerCompat;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -68,6 +63,15 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+//import androidx.preference.PreferenceActivity;
+import android.preference.PreferenceActivity;
+
+
+import org.pocketworkstation.pckeyboard.LatinIMEUtil.RingCharBuffer;
+import org.xmlpull.v1.XmlPullParserException;
+
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -77,8 +81,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Input method implementation for Qwerty'ish keyboard.
@@ -87,6 +91,11 @@ public class LatinIME extends InputMethodService implements
         ComposeSequencing,
         LatinKeyboardBaseView.OnKeyboardActionListener,
         SharedPreferences.OnSharedPreferenceChangeListener {
+
+    private static GlobalKeyboardSettings getSettingsSafe() {
+        return LatinIME.sKeyboardSettings;
+    }
+
     private static final String TAG = "PCKeyboardIME";
     private static final String NOTIFICATION_CHANNEL_ID = "PCKeyboard";
     private static final int NOTIFICATION_ONGOING_ID = 1001;
@@ -285,7 +294,9 @@ public class LatinIME extends InputMethodService implements
     private PluginManager mPluginManager;
     private NotificationReceiver mNotificationReceiver;
 
-    private VoiceRecognitionTrigger mVoiceRecognitionTrigger;
+    //private VoiceRecognitionTrigger mVoiceRecognitionTrigger;
+    //Object mVoiceRecognitionTrigger;
+    private SpeechRecognizer mSpeechRecognizer;
 
     public abstract static class WordAlternatives {
         protected CharSequence mChosenWord;
@@ -390,9 +401,9 @@ public class LatinIME extends InputMethodService implements
                 res.getBoolean(R.bool.default_suggestions_in_landscape));
         mHeightPortrait = getHeight(prefs, PREF_HEIGHT_PORTRAIT, res.getString(R.string.default_height_portrait));
         mHeightLandscape = getHeight(prefs, PREF_HEIGHT_LANDSCAPE, res.getString(R.string.default_height_landscape));
-        LatinIME.sKeyboardSettings.hintMode = Integer.parseInt(prefs.getString(PREF_HINT_MODE, res.getString(R.string.default_hint_mode)));
-        LatinIME.sKeyboardSettings.longpressTimeout = getPrefInt(prefs, PREF_LONGPRESS_TIMEOUT, res.getString(R.string.default_long_press_duration));
-        LatinIME.sKeyboardSettings.renderMode = getPrefInt(prefs, PREF_RENDER_MODE, res.getString(R.string.default_render_mode));
+        getSettingsSafe().hintMode = Integer.parseInt(prefs.getString(PREF_HINT_MODE, res.getString(R.string.default_hint_mode)));
+        getSettingsSafe().longpressTimeout = getPrefInt(prefs, PREF_LONGPRESS_TIMEOUT, res.getString(R.string.default_long_press_duration));
+        getSettingsSafe().renderMode = getPrefInt(prefs, PREF_RENDER_MODE, res.getString(R.string.default_render_mode));
         mSwipeUpAction = prefs.getString(PREF_SWIPE_UP, res.getString(R.string.default_swipe_up));
         mSwipeDownAction = prefs.getString(PREF_SWIPE_DOWN, res.getString(R.string.default_swipe_down));
         mSwipeLeftAction = prefs.getString(PREF_SWIPE_LEFT, res.getString(R.string.default_swipe_left));
@@ -401,7 +412,11 @@ public class LatinIME extends InputMethodService implements
         mVolDownAction = prefs.getString(PREF_VOL_DOWN, res.getString(R.string.default_vol_down));
         sKeyboardSettings.initPrefs(prefs, res);
 
-        mVoiceRecognitionTrigger = new VoiceRecognitionTrigger(this);
+        //mVoiceRecognitionTrigger = new VoiceRecognitionTrigger(this);
+        if (SpeechRecognizer.isRecognitionAvailable(this)) {
+            mSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+            mSpeechRecognizer.setRecognitionListener(new VoiceRecognitionListener());
+        }
         
         updateKeyboardOptions();
 
@@ -412,7 +427,11 @@ public class LatinIME extends InputMethodService implements
         pFilter.addAction("android.intent.action.PACKAGE_ADDED");
         pFilter.addAction("android.intent.action.PACKAGE_REPLACED");
         pFilter.addAction("android.intent.action.PACKAGE_REMOVED");
-        registerReceiver(mPluginManager, pFilter);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(mPluginManager, pFilter, Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(mPluginManager, pFilter);
+        }
 
         LatinIMEUtil.GCUtils.getInstance().reset();
         boolean tryGC = true;
@@ -431,7 +450,11 @@ public class LatinIME extends InputMethodService implements
         // register to receive ringer mode changes for silent mode
         IntentFilter filter = new IntentFilter(
                 AudioManager.RINGER_MODE_CHANGED_ACTION);
-        registerReceiver(mReceiver, filter);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(mReceiver, filter, Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(mReceiver, filter);
+        }
         prefs.registerOnSharedPreferenceChangeListener(this);
         setNotification(mKeyboardNotification);
     }
@@ -455,8 +478,8 @@ public class LatinIME extends InputMethodService implements
         }
         // Convert overall keyboard height to per-row percentage
         int screenHeightPercent = isPortrait ? mHeightPortrait : mHeightLandscape;
-        LatinIME.sKeyboardSettings.keyboardMode = kbMode;
-        LatinIME.sKeyboardSettings.keyboardHeightPercent = (float) screenHeightPercent;
+        getSettingsSafe().keyboardMode = kbMode;
+        getSettingsSafe().keyboardHeightPercent = (float) screenHeightPercent;
     }
 
     private void createNotificationChannel() {
@@ -480,24 +503,38 @@ public class LatinIME extends InputMethodService implements
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(ns);
 
         if (visible && mNotificationReceiver == null) {
-            createNotificationChannel();
-            int icon = R.drawable.icon;
-            CharSequence text = "Keyboard notification enabled.";
-            long when = System.currentTimeMillis();
+            // --- 1. MODERN PERMISSION CHECK ---
+            // If we are on Android 13+ and don't have permission, we stop here to avoid a crash.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (androidx.core.content.ContextCompat.checkSelfPermission(this,
+                        android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    Log.w(TAG, "Cannot show notification: Permission POST_NOTIFICATIONS denied.");
+                    return;
+                }
+            }
 
-            // TODO: clean this up?
+            createNotificationChannel();
+
             mNotificationReceiver = new NotificationReceiver(this);
             final IntentFilter pFilter = new IntentFilter(NotificationReceiver.ACTION_SHOW);
             pFilter.addAction(NotificationReceiver.ACTION_SETTINGS);
-            registerReceiver(mNotificationReceiver, pFilter);
-            
+
+            // --- 2. EXPORTED FLAG FOR RECEIVER ---
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // This allows the System (the notification) to talk back to your app
+                registerReceiver(mNotificationReceiver, pFilter, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(mNotificationReceiver, pFilter);
+            }
+
             Intent notificationIntent = new Intent(NotificationReceiver.ACTION_SHOW);
-            PendingIntent contentIntent = PendingIntent.getBroadcast(getApplicationContext(), 1, notificationIntent, 0);
-            //PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0);
+            // --- 3. IMMUTABLE FLAG FOR PENDING INTENTS ---
+            PendingIntent contentIntent = PendingIntent.getBroadcast(getApplicationContext(), 1,
+                    notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
             Intent configIntent = new Intent(NotificationReceiver.ACTION_SETTINGS);
-            PendingIntent configPendingIntent =
-                    PendingIntent.getBroadcast(getApplicationContext(), 2, configIntent, 0);
+            PendingIntent configPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 2,
+                    configIntent, PendingIntent.FLAG_IMMUTABLE);
 
             String title = "Show Hacker's Keyboard";
             String body = "Select this to open the keyboard. Disable in settings.";
@@ -505,8 +542,8 @@ public class LatinIME extends InputMethodService implements
             NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                     .setSmallIcon(R.drawable.icon_hk_notification)
                     .setColor(0xff220044)
-                    .setAutoCancel(false) //Make this notification automatically dismissed when the user touches it -> false.
-                    .setTicker(text)
+                    .setAutoCancel(false)
+                    .setTicker("Keyboard notification enabled.")
                     .setContentTitle(title)
                     .setContentText(body)
                     .setContentIntent(contentIntent)
@@ -515,27 +552,16 @@ public class LatinIME extends InputMethodService implements
                             configPendingIntent)
                     .setPriority(NotificationCompat.PRIORITY_DEFAULT);
 
-            /*
-            Notification notification = new Notification.Builder(getApplicationContext())
-                    .setAutoCancel(false) //Make this notification automatically dismissed when the user touches it -> false.
-                    .setTicker(text)
-                    .setContentTitle(title)
-                    .setContentText(body)
-                    .setWhen(when)
-                    .setSmallIcon(icon)
-                    .setContentIntent(contentIntent)
-                    .getNotification();
-            notification.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_NO_CLEAR;
-            mNotificationManager.notify(ID, notification);
-            */
-
             NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
 
-            // notificationId is a unique int for each notification that you must define
+            // --- 4. THE ACTUAL NOTIFICATION CALL ---
+            // Since we checked permission at the top, this is now safe.
             notificationManager.notify(NOTIFICATION_ONGOING_ID, mBuilder.build());
 
         } else if (mNotificationReceiver != null) {
-            mNotificationManager.cancel(NOTIFICATION_ONGOING_ID);
+            if (mNotificationManager != null) {
+                mNotificationManager.cancel(NOTIFICATION_ONGOING_ID);
+            }
             unregisterReceiver(mNotificationReceiver);
             mNotificationReceiver = null;
         }
@@ -799,9 +825,6 @@ public class LatinIME extends InputMethodService implements
         mEnableVoiceButton = shouldShowVoiceButton(attribute);
         final boolean enableVoiceButton = mEnableVoiceButton && mEnableVoice;
 
-        if (mVoiceRecognitionTrigger != null) {
-            mVoiceRecognitionTrigger.onStartInputView();
-        }
         
         mInputTypeNoAutoCorrect = false;
         mPredictionOnForMode = false;
@@ -1461,14 +1484,11 @@ public class LatinIME extends InputMethodService implements
 
     private void onOptionKeyPressed() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // Input method selector is available as a button in the soft key area, so just launch
-            // HK settings directly. This also works around the alert dialog being clipped
-            // in Android O.
-            startActivity(new Intent(this, LatinIMESettings.class));
+            // Use our helper method which includes the FLAG_ACTIVITY_NEW_TASK
+            launchSettings();
         } else {
-            // Show an options menu with choices to change input method or open HK settings.
             if (!isShowingOptionDialog()) {
-                 showOptionsMenu();
+                showOptionsMenu();
             }
         }
     }
@@ -2007,10 +2027,9 @@ public class LatinIME extends InputMethodService implements
             toggleLanguage(false, false);
             break;
         case LatinKeyboardView.KEYCODE_VOICE:
-            if (mVoiceRecognitionTrigger.isInstalled()) {
-                mVoiceRecognitionTrigger.startVoiceRecognition();
-            }
-            //startListening(false /* was a button press, was not a swipe */);
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            mSpeechRecognizer.startListening(intent);
             break;
         case 9 /* Tab */:
             if (processMultiKey(primaryCode)) {
@@ -3012,14 +3031,14 @@ public class LatinIME extends InputMethodService implements
                     PREF_HEIGHT_LANDSCAPE, res.getString(R.string.default_height_landscape));
             needReload = true;
         } else if (PREF_HINT_MODE.equals(key)) {
-            LatinIME.sKeyboardSettings.hintMode = Integer.parseInt(sharedPreferences.getString(PREF_HINT_MODE,
+            getSettingsSafe().hintMode = Integer.parseInt(sharedPreferences.getString(PREF_HINT_MODE,
                     res.getString(R.string.default_hint_mode)));
             needReload = true;
         } else if (PREF_LONGPRESS_TIMEOUT.equals(key)) {
-               LatinIME.sKeyboardSettings.longpressTimeout = getPrefInt(sharedPreferences, PREF_LONGPRESS_TIMEOUT,
+               getSettingsSafe().longpressTimeout = getPrefInt(sharedPreferences, PREF_LONGPRESS_TIMEOUT,
                        res.getString(R.string.default_long_press_duration));
         } else if (PREF_RENDER_MODE.equals(key)) {
-            LatinIME.sKeyboardSettings.renderMode = getPrefInt(sharedPreferences, PREF_RENDER_MODE,
+            getSettingsSafe().renderMode = getPrefInt(sharedPreferences, PREF_RENDER_MODE,
                     res.getString(R.string.default_render_mode));
             needReload = true;
         } else if (PREF_SWIPE_UP.equals(key)) {
@@ -3363,15 +3382,18 @@ public class LatinIME extends InputMethodService implements
         mSuggest.setAutoTextEnabled(!different && mQuickFixes);
     }
 
+    // Version 1: The "Simple" one that gets called by the swipe actions
     protected void launchSettings() {
         launchSettings(LatinIMESettings.class);
     }
 
-    protected void launchSettings(
-            Class<? extends PreferenceActivity> settingsClass) {
-        handleClose();
+    // Version 2: The "Worker" one that handles the Intent
+    protected void launchSettings(Class<? extends android.preference.PreferenceActivity> settingsClass) {
+        // Break the infinite loop by NOT calling handleClose() here.
+        // The keyboard will naturally close itself when the new Activity takes over the screen.
+
         Intent intent = new Intent();
-        intent.setClass(LatinIME.this, settingsClass);
+        intent.setClass(this, settingsClass);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
     }
@@ -3562,5 +3584,23 @@ public class LatinIME extends InputMethodService implements
         if (val > 75)
             val = 75;
         return val;
+    }
+
+    private class VoiceRecognitionListener implements RecognitionListener {
+        @Override
+        public void onResults(Bundle results) {
+            ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (matches != null && !matches.isEmpty()) {
+                getCurrentInputConnection().commitText(matches.get(0), 1);
+            }
+        }
+        @Override public void onReadyForSpeech(Bundle params) {}
+        @Override public void onBeginningOfSpeech() {}
+        @Override public void onRmsChanged(float rmsdB) {}
+        @Override public void onBufferReceived(byte[] buffer) {}
+        @Override public void onEndOfSpeech() {}
+        @Override public void onError(int error) { Log.e(TAG, "Voice Error: " + error); }
+        @Override public void onPartialResults(Bundle partialResults) {}
+        @Override public void onEvent(int eventType, Bundle params) {}
     }
 }

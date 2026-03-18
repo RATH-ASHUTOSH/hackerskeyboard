@@ -47,4 +47,13 @@
     <color name="key_background_pressed_material_light">#2637474F</color>
     <color name="key_text_color_material_light">#000000</color>
     <color name="key_hint_letter_color_material_light">#B337474F</color>
+
+    <color name="modern_keyboard_bg">#000000</color>
+    <color name="modern_key_bg">#1E1E1E</color>
+    <color name="modern_key_pressed">#333333</color>
+    <color name="modern_key_border">#2C2C2C</color>
+    <color name="modern_key_text">#FFFFFF</color>
+    <color name="modern_key_glass">#33FFFFFF</color>
+    <color name="modern_key_glass_pressed">#66FFFFFF</color>
+
 </resources>

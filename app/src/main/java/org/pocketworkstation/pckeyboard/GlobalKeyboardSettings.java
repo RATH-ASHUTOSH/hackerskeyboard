@@ -45,6 +45,7 @@ public final class GlobalKeyboardSettings {
     public int keyboardModePortrait = 0;
     public int keyboardModeLandscape = 2;
     public boolean compactModeEnabled = true;  // always on
+    public boolean swapActionKeys = false;
     public int ctrlAOverride = 0;
     public int chordingCtrlKey = 0;
     public int chordingAltKey = 0;
@@ -131,6 +132,12 @@ public final class GlobalKeyboardSettings {
             public void set(String val) { keyboardModeLandscape = Integer.valueOf(val); }
             public String getDefault() { return res.getString(R.string.default_keyboard_mode_landscape); }
             public int getFlags() { return FLAG_PREF_RESET_KEYBOARDS | FLAG_PREF_RESET_MODE_OVERRIDE; }
+        });
+
+        addBooleanPref("pref_swap_action_keys", new BooleanPref() {
+            public void set(boolean val) { swapActionKeys = val; }
+            public boolean getDefault() { return false; }
+            public int getFlags() { return FLAG_PREF_RESET_KEYBOARDS; }
         });
 
         addStringPref("pref_slide_keys_int", new StringPref() {
